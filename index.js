@@ -70,6 +70,41 @@ module.exports = function GridFSStore (globalOpts) {
             });
         },
 
+
+	getInfo: function(fd, cb) {
+            MongoClient.connect(globalOpts.uri, {native_parser:true}, function(err, db) {
+                GridStore.exist(db, fd, globalOpts.bucket, function(err, exists) {
+                    if (err) {
+                        db.close();
+                        return cb(err);
+                    }
+                    if (!exists) {
+                        err = new Error('ENOENT');
+                        err.name = 'Error (ENOENT)';
+                        err.code = 'ENOENT';
+                        err.status = 404;
+                        err.message = util.format('No file exists in this mongo gridfs bucket with that file descriptor (%s)', fd);
+                        db.close();
+                        return cb(err);
+                    }
+
+                    var gridStore = new GridStore(db, fd, 'r', {root: globalOpts.bucket});
+                    gridStore.open(function(err, gridStore) {
+                        if (err) {
+                            db.close();
+                            return cb(err);
+                        };
+                        
+                        return cb(null, {
+                            length: gridStore.length,
+                            contentType: gridStore.contentType
+                        });
+                    });
+                });
+                
+            });
+        },
+
         read: function (fd, cb) {
             MongoClient.connect(globalOpts.uri, {native_parser: true}, function (err, db) {
                 if (err) {
