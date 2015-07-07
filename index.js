@@ -13,6 +13,7 @@ var Grid = require('gridfs-stream');
 var mongo = require('mongodb'),
     GridStore = require('mongodb').GridStore,
     MongoClient = require('mongodb').MongoClient,
+    ObjectID = require('mongodb').ObjectID,
     Server = require('mongodb');
 
 
@@ -71,7 +72,7 @@ module.exports = function GridFSStore (globalOpts) {
         },
 
 
-	getInfo: function(fd, cb) {
+	    getInfo: function(fd, cb) {
             MongoClient.connect(globalOpts.uri, {native_parser:true}, function(err, db) {
                 GridStore.exist(db, fd, globalOpts.bucket, function(err, exists) {
                     if (err) {
@@ -94,14 +95,14 @@ module.exports = function GridFSStore (globalOpts) {
                             db.close();
                             return cb(err);
                         };
-                        
+
                         return cb(null, {
                             length: gridStore.length,
                             contentType: gridStore.contentType
                         });
                     });
                 });
-                
+
             });
         },
 
@@ -232,9 +233,52 @@ module.exports = function GridFSStore (globalOpts) {
             });
         },
 
+        write: function(fd, new_file, cb) {
+            options = {};
+            options = _.defaults(options, globalOpts);
+
+            MongoClient.connect(globalOpts.uri, {native_parser: true}, function (err, db) {
+                if (err) {
+                    return cb(err);
+                }
+
+                var fileId = new ObjectID();
+                var gridStore = new GridStore(db, fileId, fd, 'w', {
+                    root: options.bucket,
+                    metadata: {
+                        fd: fd,
+                        dirname: path.dirname(fd)
+                    }
+                });
+                gridStore.open(function(err, gridStore) {
+                    if (err) {
+                        db.close();
+                        return cb(err);
+                    };
+
+                    gridStore.write(new_file, function(err, gridStore) {
+                        if (err) {
+                            db.close();
+                            return cb(err);
+                        };
+                        gridStore.close(function(err, result) {
+                            db.close();
+                            return cb(err, result);
+                        });
+                    });
+                });
+            });
+        },
+
+
+
         /**
          * A simple receiver for Skipper that writes Upstreams to
          * gridfs
+         *
+         *
+         *
+         *
          *
          *
          * @param  {Object} options
